@@ -3,7 +3,7 @@
 //  NumberKit
 //
 //  Created by Matthias Zenger on 04/08/2015.
-//  Copyright © 2015-2017 Matthias Zenger. All rights reserved.
+//  Copyright © 2015-2019 Matthias Zenger. All rights reserved.
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 //  limitations under the License.
 //
 
-import Darwin
+import Foundation
 
 
 /// The `RationalNumber` protocol defines an interface for rational numbers. A rational
@@ -164,10 +164,9 @@ public struct Rational<T: IntegerNumber>: RationalNumber, CustomStringConvertibl
   ///    Denominator = SignedInteger
   public init?(from str: String, radix: Int = 10) {
     precondition(radix >= 2, "radix >= 2 required")
-    let chars = str.characters
-    if let idx = chars.index(of: rationalSeparator) {
+    if let idx = str.firstIndex(of: rationalSeparator) {
       if let numVal = Int64(str[..<idx], radix: radix),
-         let denomVal = Int64(str[chars.index(after: idx)...], radix: radix) {
+         let denomVal = Int64(str[str.index(after: idx)...], radix: radix) {
         self.init(T(numVal), T(denomVal))
       } else {
         return nil
@@ -233,12 +232,13 @@ public struct Rational<T: IntegerNumber>: RationalNumber, CustomStringConvertibl
     let t2 = other.denominator / div
     return (self.numerator * t2, other.numerator * t1, t1 * t2 * div)
   }
-
-  /// The hash value of this rational value.
-  public var hashValue: Int {
-    return 31 &* denominator.hashValue &+ numerator.hashValue
+  
+  /// For hashing values.
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(numerator)
+    hasher.combine(denominator)
   }
-
+  
   /// The absolute rational value (without sign).
   public var abs: Rational<T> {
     return self.magnitude

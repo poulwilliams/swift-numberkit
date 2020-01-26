@@ -3,7 +3,7 @@
 //  NumberKit
 //
 //  Created by Matthias Zenger on 15/08/2015.
-//  Copyright © 2015-2017 Matthias Zenger. All rights reserved.
+//  Copyright © 2015-2019 Matthias Zenger. All rights reserved.
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 //  limitations under the License.
 //
 
-import Darwin
+import Foundation
 
 
 /// The `ComplexNumber` protocol defines an interface for complex numbers. A complex
@@ -177,9 +177,10 @@ public struct Complex<T: FloatingPointNumber>: ComplexNumber,
     }
   }
   
-  /// Returns a hash value for this complex number
-  public var hashValue: Int {
-    return im.hashValue &* 31 &+ re.hashValue
+  /// For hashing values.
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(re)
+    hasher.combine(im)
   }
   
   /// Returns the real part of the complex number if the number has no complex

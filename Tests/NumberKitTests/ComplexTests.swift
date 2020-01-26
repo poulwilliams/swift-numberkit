@@ -3,7 +3,7 @@
 //  NumberKit
 //
 //  Created by Matthias Zenger on 16/08/2015.
-//  Copyright © 2015-2017 Matthias Zenger. All rights reserved.
+//  Copyright © 2015-2019 Matthias Zenger. All rights reserved.
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -37,4 +37,9 @@ class ComplexTests: XCTestCase {
     let c = 1.0.i
     XCTAssertEqual(c * c, -1)
   }
+  
+  static let allTests = [
+    ("testConstructors", testConstructors),
+    ("testImaginaryInvariant", testImaginaryInvariant),
+  ]
 }

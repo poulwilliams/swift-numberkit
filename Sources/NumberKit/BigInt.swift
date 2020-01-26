@@ -3,7 +3,7 @@
 //  NumberKit
 //
 //  Created by Matthias Zenger on 12/08/2015.
-//  Copyright © 2015-2017 Matthias Zenger. All rights reserved.
+//  Copyright © 2015-2019 Matthias Zenger. All rights reserved.
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 //  limitations under the License.
 //
 
-import Darwin
+import Foundation
 
 
 /// Class `BigInt` implements signed, arbitrary-precision integers. `BigInt` objects
@@ -38,14 +38,14 @@ public struct BigInt: Hashable,
   
   // This is an array of `UInt32` words. The lowest significant word comes first in
   // the array.
-  private let uwords: [UInt32]
+  private let uwords: ContiguousArray<UInt32>
   
   // `negative` signals whether the number is positive or negative.
   private let negative: Bool
   
   // All internal computations are based on 32-bit words; the base of this representation
   // is therefore `UInt32.max + 1`.
-  private static let base: UInt64 = UInt64(UInt32.max) + 1
+  private static let base: UInt64 = UInt64(UInt32.max) &+ 1
   
   // `hiword` extracts the highest 32-bit value of a `UInt64`.
   private static func hiword(_ num: UInt64) -> UInt32 {
@@ -59,7 +59,7 @@ public struct BigInt: Hashable,
   
   // `joinwords` combines two words into a `UInt64` value.
   private static func joinwords(_ lword: UInt32, _ hword: UInt32) -> UInt64 {
-    return (UInt64(hword) << 32) + UInt64(lword)
+    return (UInt64(hword) << 32) &+ UInt64(lword)
   }
   
   /// Class `Base` defines a representation and type for the base used in computing
@@ -125,7 +125,7 @@ public struct BigInt: Hashable,
   
   /// Internal primary constructor. It removes superfluous words and normalizes the
   /// representation of zero.
-  internal init(words: [UInt32], negative: Bool) {
+  internal init(words: ContiguousArray<UInt32>, negative: Bool) {
     var words = words
     while words.count > 1 && words[words.count - 1] == 0 {
       words.removeLast()
@@ -137,7 +137,7 @@ public struct BigInt: Hashable,
   /// Internal primary constructor. It removes superfluous words and normalizes the
   /// representation of zero.
   internal init(words: [UInt], negative: Bool) {
-    var uwords = [UInt32]()
+    var uwords = ContiguousArray<UInt32>()
     uwords.reserveCapacity(words.count * 2)
     for word in words {
       let myword = UInt64(word)
@@ -179,7 +179,7 @@ public struct BigInt: Hashable,
   /// `BigInt` numbers.
   public init(digits: [UInt8], negative: Bool = false, base: Base = BigInt.decBase) {
     var digits = digits
-    var words: [UInt32] = []
+    var words = ContiguousArray<UInt32>()
     var iterate: Bool
     repeat {
       var sum: UInt64 = 0
@@ -208,41 +208,40 @@ public struct BigInt: Hashable,
   /// Creates a `BigInt` from a string containing a number using the given base.
   public init?(from str: String, base: Base = BigInt.decBase) {
     var negative = false
-    let chars = str.characters
-    var i = chars.startIndex
-    while i < chars.endIndex && chars[i] == " " {
-      i = chars.index(after: i)
+    var i = str.startIndex
+    while i < str.endIndex && str[i] == " " {
+      i = str.index(after: i)
     }
-    if i < chars.endIndex {
-      if chars[i] == "-" {
+    if i < str.endIndex {
+      if str[i] == "-" {
         negative = true
-        i = chars.index(after: i)
-      } else if chars[i] == "+" {
-        i = chars.index(after: i)
+        i = str.index(after: i)
+      } else if str[i] == "+" {
+        i = str.index(after: i)
       }
     }
-    if i < chars.endIndex && chars[i] == "0" {
-      while i < chars.endIndex && chars[i] == "0" {
-        i = chars.index(after: i)
+    if i < str.endIndex && str[i] == "0" {
+      while i < str.endIndex && str[i] == "0" {
+        i = str.index(after: i)
       }
-      if i == chars.endIndex {
+      if i == str.endIndex {
         self.init(0)
         return
       }
     }
     var temp: [UInt8] = []
-    while i < chars.endIndex {
-      if let digit = base.digitMap[chars[i]] {
+    while i < str.endIndex {
+      if let digit = base.digitMap[str[i]] {
         temp.append(digit)
-        i = chars.index(after: i)
+        i = str.index(after: i)
       } else {
         break
       }
     }
-    while i < chars.endIndex && chars[i] == " " {
-      i = chars.index(after: i)
+    while i < str.endIndex && str[i] == " " {
+      i = str.index(after: i)
     }
-    guard i == chars.endIndex else {
+    guard i == str.endIndex else {
       return nil
     }
     self.init(digits: temp, negative: negative, base: base)
@@ -364,13 +363,11 @@ public struct BigInt: Hashable,
     return self.negative ? -res : res
   }
   
-  /// The hash value of this `BigInt` object.
-  public var hashValue: Int {
-    var hash: Int = 0
+  /// For hashing values.
+  public func hash(into hasher: inout Hasher) {
     for i in 0..<uwords.count {
-      hash = (31 &* hash) &+ uwords[i].hashValue
+      hasher.combine(uwords[i])
     }
-    return hash
   }
   
   /// Returns true if this `BigInt` is negative.
@@ -405,16 +402,16 @@ public struct BigInt: Hashable,
     guard self.negative == rhs.negative else {
       return self.negative ? -1 : 1
     }
-    return self.negative ? rhs.compareDigits(with: self) : compareDigits(with: rhs)
+    return self.negative ? rhs.compareDigits(with: self) : self.compareDigits(with: rhs)
   }
   
   private func compareDigits(with rhs: BigInt) -> Int {
-    guard uwords.count == rhs.uwords.count else {
-      return uwords.count < rhs.uwords.count ? -1 : 1
+    guard self.uwords.count == rhs.uwords.count else {
+      return self.uwords.count < rhs.uwords.count ? -1 : 1
     }
-    for i in 1...uwords.count {
-      let a = uwords[uwords.count - i]
-      let b = rhs.uwords[uwords.count - i]
+    for i in 1...self.uwords.count {
+      let a = self.uwords[self.uwords.count - i]
+      let b = rhs.uwords[self.uwords.count - i]
       if a != b {
         return a < b ? -1 : 1
       }
@@ -428,7 +425,7 @@ public struct BigInt: Hashable,
       return self.minus(rhs.negate)
     }
     let (b1, b2) = self.uwords.count < rhs.uwords.count ? (rhs, self) : (self, rhs)
-    var res = [UInt32]()
+    var res = ContiguousArray<UInt32>()
     res.reserveCapacity(b1.uwords.count)
     var sum: UInt64 = 0
     for i in 0..<b2.uwords.count {
@@ -453,13 +450,13 @@ public struct BigInt: Hashable,
     guard self.negative == rhs.negative else {
       return self.plus(rhs.negate)
     }
-    let cmp = compareDigits(with: rhs)
+    let cmp = self.compareDigits(with: rhs)
     guard cmp != 0 else {
       return 0
     }
     let negative = cmp < 0 ? !self.negative : self.negative
     let (b1, b2) = cmp < 0 ? (rhs, self) : (self, rhs)
-    var res = [UInt32]()
+    var res = ContiguousArray<UInt32>()
     var carry: UInt64 = 0
     for i in 0..<b2.uwords.count {
       if UInt64(b1.uwords[i]) < UInt64(b2.uwords[i]) + carry {
@@ -485,7 +482,7 @@ public struct BigInt: Hashable,
   /// Returns the result of mulitplying `self` with `rhs` as a `BigInt`
   public func times(_ rhs: BigInt) -> BigInt {
     let (b1, b2) = self.uwords.count < rhs.uwords.count ? (rhs, self) : (self, rhs)
-    var res = [UInt32](repeating: 0, count: b1.uwords.count + b2.uwords.count)
+    var res = ContiguousArray<UInt32>(repeating: 0, count: b1.uwords.count + b2.uwords.count)
     for i in 0..<b2.uwords.count {
       var sum: UInt64 = 0
       for j in 0..<b1.uwords.count {
@@ -499,8 +496,10 @@ public struct BigInt: Hashable,
     return BigInt(words: res, negative: b1.negative != b2.negative)
   }
   
-  private static func multSub(_ approx: UInt32, _ divis: [UInt32],
-    _ rem: inout [UInt32], _ from: Int) {
+  private static func multSub(_ approx: UInt32,
+                              _ divis: ContiguousArray<UInt32>,
+                              _ rem: inout ContiguousArray<UInt32>,
+                              _ from: Int) {
       var sum: UInt64 = 0
       var carry: UInt64 = 0
       for j in 0..<divis.count {
@@ -517,7 +516,9 @@ public struct BigInt: Hashable,
       }
   }
   
-  private static func subIfPossible(divis: [UInt32], rem: inout [UInt32], from: Int) -> Bool {
+  private static func subIfPossible(divis: ContiguousArray<UInt32>,
+                                    rem: inout ContiguousArray<UInt32>,
+                                    from: Int) -> Bool {
     var i = divis.count
     while i > 0 && divis[i - 1] >= rem[from + i - 1] {
       if divis[i - 1] > rem[from + i - 1] {
@@ -539,27 +540,27 @@ public struct BigInt: Hashable,
     return true
   }
   
-  /// Divides `self` by `rhs` and returns the result as a `BigInt`.
+  /// Divides `self` by `rhs` and returns the quotient and the remainder as a `BigInt`.
   public func divided(by rhs: BigInt) -> (quotient: BigInt, remainder: BigInt) {
     guard rhs.uwords.count <= self.uwords.count else {
-      return (BigInt(0), self.abs)
+      return (BigInt(0), self)
     }
     let neg = self.negative != rhs.negative
     if rhs.uwords.count == self.uwords.count {
-      let cmp = compare(to: rhs)
+      let cmp = self.compareDigits(with: rhs)
       if cmp == 0 {
         return (BigInt(neg ? -1 : 1), BigInt(0))
       } else if cmp < 0 {
-        return (BigInt(0), self.abs)
+        return (BigInt(0), self)
       }
     }
-    var rem = [UInt32](self.uwords)
+    var rem = ContiguousArray<UInt32>(self.uwords)
     rem.append(0)
-    var divis = [UInt32](rhs.uwords)
+    var divis = ContiguousArray<UInt32>(rhs.uwords)
     divis.append(0)
     var sizediff = self.uwords.count - rhs.uwords.count
     let div = UInt64(rhs.uwords[rhs.uwords.count - 1]) + 1
-    var res = [UInt32](repeating: 0, count: sizediff + 1)
+    var res = ContiguousArray<UInt32>(repeating: 0, count: sizediff + 1)
     var divident = rem.count - 2
     repeat {
       var x = BigInt.joinwords(rem[divident], rem[divident + 1])
@@ -614,55 +615,132 @@ public struct BigInt: Hashable,
     return y
   }
   
-  /// Computes the bitwise `and` between this value and `rhs`.
+  /// Returns the bitwise negation of this `BigInt` number assuming a representation in
+  /// two-complement form.
+  public var not: BigInt {
+    return self.negate.minus(BigInt.one)
+  }
+  
+  /// Returns true if the most significant bit is set in the number represented by `words`.
+  private static func isMostSignificantBitSet(_ words: ContiguousArray<UInt32>) -> Bool {
+    return (words.last! & (1 << (UInt32.bitWidth - 1))) != 0
+  }
+  
+  /// Creates a `BigInt` number from a number represented by `words` in two-complement form.
+  private static func fromTwoComplement(_ words: inout ContiguousArray<UInt32>) -> BigInt {
+    if BigInt.isMostSignificantBitSet(words) {
+      var carry = true
+      for i in words.indices {
+        if carry {
+          (words[i], carry) = (~words[i]).addingReportingOverflow(1)
+        } else {
+          words[i] = ~words[i]
+        }
+      }
+      return BigInt(words: words, negative: true)
+    } else {
+      return BigInt(words: words, negative: false)
+    }
+  }
+  
+  /// Computes the minimum number of words needed for applying bit operations to two
+  /// numbers in two-complement representation. `left` and `right` are representing the
+  /// magnitude of those two numbers.
+  private static func twoComplementSize(_ left: ContiguousArray<UInt32>,
+                                        _ right: ContiguousArray<UInt32>) -> Int {
+    return Swift.max(left.count + (BigInt.isMostSignificantBitSet(left) ? 1 : 0),
+                     right.count + (BigInt.isMostSignificantBitSet(right) ? 1 : 0))
+  }
+  
+  /// Computes the bitwise `and` between this value and `rhs` assuming a
+  /// representation of the numbers in two-complement form.
   public func and(_ rhs: BigInt) -> BigInt {
-    let size = Swift.min(self.uwords.count, rhs.uwords.count)
-    var res = [UInt32]()
+    var (leftcarry, rightcarry) = (true, true)
+    let size = BigInt.twoComplementSize(self.uwords, rhs.uwords)
+    var res = ContiguousArray<UInt32>()
     res.reserveCapacity(size)
     for i in 0..<size {
-      res.append(self.uwords[i] & rhs.uwords[i])
+      var leftword: UInt32 = i < self.uwords.count ? self.uwords[i] : 0
+      if self.negative {
+        if leftcarry {
+          (leftword, leftcarry) = (~leftword).addingReportingOverflow(1)
+        } else {
+          leftword = ~leftword
+        }
+      }
+      var rightword: UInt32 = i < rhs.uwords.count ? rhs.uwords[i] : 0
+      if rhs.negative {
+        if rightcarry {
+          (rightword, rightcarry) = (~rightword).addingReportingOverflow(1)
+        } else {
+          rightword = ~rightword
+        }
+      }
+      res.append(leftword & rightword)
     }
-    return BigInt(words: res, negative: self.negative && rhs.negative)
+    return BigInt.fromTwoComplement(&res)
   }
   
-  /// Computes the bitwise `or` between this value and `rhs`.
+  /// Computes the bitwise `or` (inclusive or) between this value and `rhs` assuming a
+  /// representation of the numbers in two-complement form.
   public func or(_ rhs: BigInt) -> BigInt {
-    let size = Swift.max(self.uwords.count, rhs.uwords.count)
-    var res = [UInt32]()
+    var (leftcarry, rightcarry) = (true, true)
+    let size = BigInt.twoComplementSize(self.uwords, rhs.uwords)
+    var res = ContiguousArray<UInt32>()
     res.reserveCapacity(size)
     for i in 0..<size {
-      let fst = i < self.uwords.count ? self.uwords[i] : 0
-      let snd = i < rhs.uwords.count ? rhs.uwords[i] : 0
-      res.append(fst | snd)
+      var leftword: UInt32 = i < self.uwords.count ? self.uwords[i] : 0
+      if self.negative {
+        if leftcarry {
+          (leftword, leftcarry) = (~leftword).addingReportingOverflow(1)
+        } else {
+          leftword = ~leftword
+        }
+      }
+      var rightword: UInt32 = i < rhs.uwords.count ? rhs.uwords[i] : 0
+      if rhs.negative {
+        if rightcarry {
+          (rightword, rightcarry) = (~rightword).addingReportingOverflow(1)
+        } else {
+          rightword = ~rightword
+        }
+      }
+      res.append(leftword | rightword)
     }
-    return BigInt(words: res, negative: self.negative || rhs.negative)
+    return BigInt.fromTwoComplement(&res)
   }
   
-  /// Computes the bitwise `xor` between this value and `rhs`.
+  /// Computes the bitwise `xor` (exclusive or) between this value and `rhs` assuming a
+  /// representation of the numbers in two-complement form.
   public func xor(_ rhs: BigInt) -> BigInt {
-    let size = Swift.max(self.uwords.count, rhs.uwords.count)
-    var res = [UInt32]()
+    var (leftcarry, rightcarry) = (true, true)
+    let size = BigInt.twoComplementSize(self.uwords, rhs.uwords)
+    var res = ContiguousArray<UInt32>()
     res.reserveCapacity(size)
     for i in 0..<size {
-      let fst = i < self.uwords.count ? self.uwords[i] : 0
-      let snd = i < rhs.uwords.count ? rhs.uwords[i] : 0
-      res.append(fst ^ snd)
+      var leftword: UInt32 = i < self.uwords.count ? self.uwords[i] : 0
+      if self.negative {
+        if leftcarry {
+          (leftword, leftcarry) = (~leftword).addingReportingOverflow(1)
+        } else {
+          leftword = ~leftword
+        }
+      }
+      var rightword: UInt32 = i < rhs.uwords.count ? rhs.uwords[i] : 0
+      if rhs.negative {
+        if rightcarry {
+          (rightword, rightcarry) = (~rightword).addingReportingOverflow(1)
+        } else {
+          rightword = ~rightword
+        }
+      }
+      res.append(leftword ^ rightword)
     }
-    return BigInt(words: res, negative: self.negative || rhs.negative)
-  }
-  
-  /// Inverts the bits in this `BigInt`.
-  public var invert: BigInt {
-    var res = [UInt32]()
-    res.reserveCapacity(self.uwords.count)
-    for word in self.uwords {
-      res.append(~word)
-    }
-    return BigInt(words: res, negative: !self.negative)
+    return BigInt.fromTwoComplement(&res)
   }
   
   /// Shifts the bits in this `BigInt` to the left if `n` is positive, or to the right
-  /// if `n` is negative. Bits are shifted as if this `BigInt` is an unsigned number.
+  /// if `n` is negative. This is an arithmetic shift operation.
   public func shift(_ n: Int) -> BigInt {
     if n < 0 {
       return self.shiftRight(-n)
@@ -676,7 +754,7 @@ public struct BigInt: Hashable,
   private func shiftLeft(_ x: Int) -> BigInt {
     let swords = x / UInt32.bitWidth
     let sbits = x % UInt32.bitWidth
-    var res = [UInt32]()
+    var res = ContiguousArray<UInt32>()
     res.reserveCapacity(Int(self.uwords.count) + swords)
     for _ in 0..<swords {
       res.append(0)
@@ -695,7 +773,7 @@ public struct BigInt: Hashable,
   private func shiftRight(_ x: Int) -> BigInt {
     let swords = x / UInt32.bitWidth
     let sbits = x % UInt32.bitWidth
-    var res = [UInt32]()
+    var res = ContiguousArray<UInt32>()
     res.reserveCapacity(Int(self.uwords.count) - swords)
     var carry: UInt32 = 0
     var i = self.uwords.count - 1
@@ -705,7 +783,139 @@ public struct BigInt: Hashable,
       carry = word << (UInt32.bitWidth - sbits)
       i -= 1
     }
-    return BigInt(words: res.reversed(), negative: self.negative)
+    let x = BigInt(words: ContiguousArray<UInt32>(res.reversed()), negative: self.negative)
+    if self.negative && carry > 0 {
+      return x.minus(BigInt.one)
+    } else {
+      return x
+    }
+  }
+  
+  /// Number of bits used to represent the (unsigned) `BigInt` number.
+  public var bitSize: Int {
+    return self.uwords.count * UInt32.bitWidth
+  }
+  
+  /// Number of bits set in this `BigInt` number. For negative numbers, `n.bigCount` returns
+  /// `~n.not.bigCount`.
+  public var bitCount: Int {
+    if self.negative {
+      return ~self.not.bitCount
+    } else {
+      var res = 0
+      for word in self.uwords {
+        res = res &+ bitcount(word)
+      }
+      return res
+    }
+  }
+  
+  /// Returns the first bit that is set in the two-complement form of this number. For zero,
+  /// `firstBitSet` will be -1.
+  public var firstBitSet: Int {
+    guard !self.isZero else {
+      return -1
+    }
+    var i = 0
+    var carry = true
+    while i < self.uwords.count {
+      var word = self.uwords[i]
+      if self.negative {
+        if carry {
+          (word, carry) = (~word).addingReportingOverflow(1)
+        } else {
+          word = ~word
+        }
+      }
+      if word != 0 {
+        return i * UInt32.bitWidth + word.trailingZeroBitCount
+      }
+      i += 1
+    }
+    return i * UInt32.bitWidth
+  }
+  
+  /// Returns the last bit that is set in the two-complement form of this number if it is
+  /// positive. For negative numbers, the last bit is computed of the negated number. For 0,
+  /// this method returns 0.
+  public var lastBitSet: Int {
+    guard !self.isZero else {
+      return 0
+    }
+    let number = self.negative ? self.not : self
+    var i = number.uwords.count - 1
+    while i >= 0 && number.uwords[i] == 0 {
+      i -= 1
+    }
+    return i * UInt32.bitWidth + UInt32.bitWidth - number.uwords[i].leadingZeroBitCount
+  }
+  
+  /// Returns true if bit `n` is set
+  public func isBitSet(_ n: Int) -> Bool {
+    guard !self.isZero else {
+      return false
+    }
+    let nword = n / UInt32.bitWidth
+    let nbit = n % UInt32.bitWidth
+    guard nword < self.uwords.count else {
+      return self.negative
+    }
+    guard self.negative else {
+      return (self.uwords[nword] & (1 << nbit)) != 0
+    }
+    var i = 0
+    var carry = true
+    var word: UInt32 = 0
+    while i <= nword {
+      word = self.uwords[i]
+      if self.negative {
+        if carry {
+          (word, carry) = (~word).addingReportingOverflow(1)
+        } else {
+          word = ~word
+        }
+      }
+      i += 1
+    }
+    return (word & (1 << nbit)) != 0
+  }
+  
+  /// Sets `bit` to the given value and returns the result as a new `BigInt` value.
+  /// `true` corresponds to 1, `false` corresponds to 0.
+  public func set(bit n: Int, to value: Bool) -> BigInt {
+    var words = self.uwords
+    let nword = n / UInt32.bitWidth
+    let nbit = n % UInt32.bitWidth
+    var i = words.count
+    while i <= nword {
+      words.append(0)
+      i += 1
+    }
+    guard self.negative else {
+      if value {
+        words[nword] |= 1 << nbit
+      } else {
+        words[nword] &= ~(1 << nbit)
+      }
+      return BigInt(words: words, negative: false)
+    }
+    if BigInt.isMostSignificantBitSet(words) {
+      words.append(0)
+    }
+    var carry = true
+    for i in words.indices {
+      if carry {
+        (words[i], carry) = (~words[i]).addingReportingOverflow(1)
+      } else {
+        words[i] = ~words[i]
+      }
+    }
+    if value {
+      words[nword] |= 1 << nbit
+    } else {
+      words[nword] &= ~(1 << nbit)
+    }
+    return BigInt.fromTwoComplement(&words)
   }
 }
 
@@ -722,23 +932,34 @@ extension BigInt: IntegerNumber,
   /// This is a signed type
   public static let isSigned: Bool = true
   
-  /// Returns the number of bits used to represent this `BigInt`. This consists of the
-  /// words for representing the absolute value and one extra bit for representing the sign.
+  /// Returns the number of bits used to represent this `BigInt` assuming a binary representation
+  /// using the two-complement for negative numbers.
   public var bitWidth: Int {
-    return (self.uwords.count * UInt32.bitWidth) + 1
+    return self.words.count * UInt.bitWidth
   }
   
-  /// Returns the number of trailing zero bits in the representation of this `BigInt`.
+  /// Returns the number of trailing zero bits assuming a representation in two-complement form.
   public var trailingZeroBitCount: Int {
-    guard !self.isZero else {
-      return self.bitWidth
-    }
+    let words = self.words
+    var res = 0
     var i = 0
-    while i < self.uwords.count && self.uwords[i] == 0 {
+    while i < words.count && words[i] == 0 {
       i += 1
+      res += UInt.bitWidth
     }
-    return i < self.uwords.count ? i * UInt32.bitWidth + self.uwords[i].trailingZeroBitCount
-                                 : i * UInt32.bitWidth
+    return i < words.count ? res + words[i].trailingZeroBitCount : res
+  }
+  
+  /// Returns the number of leading zero bits assuming a representation in two-complement form.
+  public var leadingZeroBitCount: Int {
+    let words = self.words
+    var res = 0
+    var i = words.count - 1
+    while i >= 0 && words[i] == 0 {
+      i -= 1
+      res += UInt.bitWidth
+    }
+    return i >= 0 ? res + words[i].leadingZeroBitCount : res
   }
   
   /// Returns the words in the binary representation of the magnitude of this number in the
@@ -885,11 +1106,7 @@ extension BigInt: IntegerNumber,
   }
   
   public init(integerLiteral value: Int64) {
-    self.init(value)
-  }
-  
-  public init(_builtinIntegerLiteral value: _MaxBuiltinIntegerType) {
-    self.init(Int64(_builtinIntegerLiteral: value))
+    self.init(Int64(integerLiteral: value))
   }
   
   public init(stringLiteral value: String) {
@@ -1080,9 +1297,9 @@ public prefix func -(num: BigInt) -> BigInt {
   return num.negate
 }
 
-/// Returns the bitwise inverted BigInt
+/// Returns the bitwise negated BigInt assuming a representation in two-complement form.
 public prefix func ~(x: BigInt) -> BigInt {
-  return x.invert
+  return x.not
 }
 
 /// Returns the maximum of `fst` and `snd`.

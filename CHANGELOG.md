@@ -1,7 +1,35 @@
 # Changelog
 
+## 2.3.2 (2019-10-20)
+- Migrated project to Xcode 11.1
+- Removed non-shared scheme from project
+
+## 2.3.1 (2019-09-23)
+- Port to Swift 5.1
+- Migrated project to Xcode 11
+
+## 2.3 (2019-03-30)
+- Port to Swift 5
+- Migrated project to Xcode 10.2
+- Use new hashing API to improve hashing algorithm and to speed up hashing compound data structures
+
+## 2.2 (2018-03-30)
+- Port to Swift 4.1
+- Migrated project to Xcode 9.3
+
+## 2.1 (2018-01-24)
+- Port to Swift 4.0.2
+- Bug fix to support the Swift Package Manager for Swift 4
+- Makes `BigInt` a fully integrated `SignedInteger` in Swift 4
+- Re-introduces operations with overflow for `Rational` (which got lost in the Swift 4 migration)
+- Optimize performance of `BigInt`
+- Comprehensive support for bit operations on `BigInt` numbers
+- Several bug fixes for existing bit operations
+- Fixes numerous bugs in bit shifting logic
+- Fixes serious bug in division and remainder logic for `BigInt` numbers
+
 ## 2.0 (2017-09-24)
-- Ported NumberKit to Swift 4. This is a major change that might break existing clients.
+- Ported NumberKit to Swift 4. This is a major change that might break existing clients
 - Added support for `toPower(of:)` for all integer types
 - Added new operators to `BigInt`: `<<`, `>>`, `<<=`, `>>=`, `%`, `%=`
 - Introduced new integer protocol: `IntegerNumber`
